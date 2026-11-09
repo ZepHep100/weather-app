@@ -1,67 +1,70 @@
 import { useState } from "react";
-import  "./Weather.css";
+import { useQuery } from "@tanstack/react-query";
+import "./Weather.css";
 
-function Weather(){
-  const [city, setCity] = useState("");
-  const [weather, setWeather] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-
-  const fetchWeather = async () => {
-    if(city.trim() === ""){
-      setError("Введите название города");
-      return;
-    }
-    setLoading(true);
-    setError("");
-    setWeather(null);
+function Weather() {
+  // 1. Состояние только для города (ввод пользователя)
+  const [city, setCity] = useState("Moscow");
+  const [searchCity, setSearchCity] = useState("Moscow"); // Город, по которому ищем
   
-    try{
-      
-      const API_KEY = "c0cda7e685bc63ea4c25f4e1782e8d7d";
-      const response = await fetch(`https://api.openweathermap.org/data/2.5/weather?q=${city}&appid=${API_KEY}&units=metric&lang=ru`
-);
-      const data = await response.json();
+  const API_KEY = "c0cda7e685bc63ea4c25f4e1782e8d7d"; // Твой ключ
 
-      setWeather(data);
-    } catch (error) {
-      setError(error.message);
-    } finally {
-      setLoading(false);
+  // 2. React Query делает всю грязную работу
+  const { data, isLoading, isError, error } = useQuery({
+    queryKey: ["weather", searchCity], // Уникальный ключ (город)
+    queryFn: async () => {
+      const response = await fetch(
+        `https://api.openweathermap.org/data/2.5/weather?q=${searchCity}&appid=${API_KEY}&units=metric&lang=ru`
+      );
+      if (!response.ok) throw new Error("Город не найден");
+      return response.json();
+    },
+    enabled: !!searchCity, // Запрос не выполнится, если город пустой
+  });
+
+  // 3. Обработка кнопки "Узнать погоду"
+  const handleSearch = () => {
+    if (city.trim() !== "") {
+      setSearchCity(city);
     }
-};
+  };
 
-
-  return(
+  return (
     <div className="weather-container">
       <h1>Погода</h1>
       
       <div className="weather-search">
-      <input
-      type="text"
-      placeholder="Введите город..."
-      value={city}
-      onChange={(e) => setCity(e.target.value)}
-      />
-      <button onClick={fetchWeather}>Узнать погоду</button>
+        <input
+          type="text"
+          placeholder="Введите город..."
+          value={city}
+          onChange={(e) => setCity(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+        />
+        <button onClick={handleSearch}>Узнать погоду</button>
       </div>
 
-      {loading && <p className="loading">Загрузка...</p>}
+      {/* React Query автоматически управляет состояниями isLoading и isError */}
+      {isLoading && <p className="loading">Загрузка...</p>}
+      {isError && <p className="error">{error.message}</p>}
 
-      {error && <p className="error">{error}</p>}
-
-      {weather && (
+      {data && (
         <div className="weather-card">
-          <h2>{weather.name}</h2>
+          <h2>{data.name}</h2>
           <img 
-          src={`https://openweathermap.org/img/wn/${weather.weather[0].icon}@2x.png`} 
-          alt="Иконка погоды"
+            src={`https://openweathermap.org/img/wn/${data.weather[0].icon}@2x.png`} 
+            alt="Иконка погоды"
           />
-          <p className="temp">{Math.round(weather.main.temp)}°C</p>
-          <p className="description">{weather.weather[0].description}</p>
+          <p className="temp">{Math.round(data.main.temp)}°C</p>
+          <p className="description">{data.weather[0].description}</p>
+          <div className="details">
+            <span>Влажность: {data.main.humidity}%</span>
+            <span>Ветер: {data.wind.speed} м/с</span>
+          </div>
         </div>
       )}
     </div>
-  )
+  );
 }
+
 export default Weather;
